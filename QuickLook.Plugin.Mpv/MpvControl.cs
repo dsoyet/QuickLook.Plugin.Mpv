@@ -187,12 +187,20 @@ public class MpvControl : Control
 
     protected override void WndProc(ref Message m)
     {
-        // Only forward Escape to QuickLook; let other keys through to mpv
-        if ((m.Msg == WM_KEYDOWN || m.Msg == WM_KEYUP) && m.WParam.ToInt32() == VK_ESCAPE)
+        if (m.Msg == WM_KEYDOWN || m.Msg == WM_KEYUP)
         {
-            if (Parent != null)
+            if (m.WParam.ToInt32() == VK_ESCAPE)
             {
-                NativeMethods.PostMessage(Parent.Handle, (uint)m.Msg, m.WParam, m.LParam);
+                // Forward Escape to QuickLook parent → close preview
+                if (Parent != null)
+                    NativeMethods.PostMessage(Parent.Handle, (uint)m.Msg, m.WParam, m.LParam);
+                return;
+            }
+
+            // Forward all other keys to the embedded mpv window
+            if (_mpvWindowHandle != IntPtr.Zero)
+            {
+                NativeMethods.PostMessage(_mpvWindowHandle, (uint)m.Msg, m.WParam, m.LParam);
                 return;
             }
         }
