@@ -61,20 +61,6 @@ public partial class MpvPanel : UserControl
         }
     }
 
-    public void StartPreview(string filePath, string mpvExePath, string extraArgs)
-    {
-        _filePath = filePath;
-        _mpvExePath = mpvExePath;
-        _mpvExtraArgs = extraArgs;
-
-        _mpvControl?.Dispose();
-        _mpvControl = new MpvControl();
-        Presenter.Child = _mpvControl;
-
-        // Defer actual playback start to Loaded so the control has a valid handle
-        Loaded += OnLoaded;
-    }
-
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
