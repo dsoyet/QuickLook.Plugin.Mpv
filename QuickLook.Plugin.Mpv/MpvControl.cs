@@ -176,7 +176,7 @@ public class MpvControl : Control
         }
     }
 
-    private void SendIpc(string json)
+    public void SendIpc(string json)
     {
         if (_ipcPipe == null || !_ipcPipe.IsConnected) return;
         try
@@ -227,47 +227,8 @@ public class MpvControl : Control
         }
     }
 
-    private const int WM_KEYDOWN = 0x0100;
-    private const int VK_ESCAPE = 0x1B;
-    private const int VK_SPACE = 0x20;
-    private const int VK_LEFT = 0x25;
-    private const int VK_UP = 0x26;
-    private const int VK_RIGHT = 0x27;
-    private const int VK_DOWN = 0x28;
-    private const int VK_OEM_4 = 0xDB;
-    private const int VK_OEM_6 = 0xDD;
-
-    [DllImport("user32.dll")]
-    private static extern bool PostMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
-
     protected override void WndProc(ref Message m)
     {
-        if (m.Msg == WM_KEYDOWN)
-        {
-            var key = m.WParam.ToInt32();
-
-            if (key == VK_ESCAPE)
-            {
-                PostMessage(Parent.Handle, (uint)m.Msg, m.WParam, m.LParam);
-                return;
-            }
-
-            switch (key)
-            {
-                case VK_SPACE:       SendIpc("{\"command\":[\"cycle\",\"pause\"]}"); return;
-                case VK_LEFT:        SendIpc("{\"command\":[\"seek\",-5]}"); return;
-                case VK_RIGHT:       SendIpc("{\"command\":[\"seek\",5]}"); return;
-                case VK_UP:          SendIpc("{\"command\":[\"add\",\"volume\",2]}"); return;
-                case VK_DOWN:        SendIpc("{\"command\":[\"add\",\"volume\",-2]}"); return;
-                case VK_OEM_4:       SendIpc("{\"command\":[\"multiply\",\"speed\",0.5]}"); return;
-                case VK_OEM_6:       SendIpc("{\"command\":[\"multiply\",\"speed\",2.0]}"); return;
-                case 0x46: /*F*/     SendIpc("{\"command\":[\"cycle\",\"fullscreen\"]}"); return;
-                case 0x4D: /*M*/     SendIpc("{\"command\":[\"cycle\",\"mute\"]}"); return;
-                case 0x39: /*9*/     SendIpc("{\"command\":[\"add\",\"volume\",-2]}"); return;
-                case 0x30: /*0*/     SendIpc("{\"command\":[\"add\",\"volume\",2]}"); return;
-            }
-        }
-
         base.WndProc(ref m);
     }
 
