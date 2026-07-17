@@ -17,7 +17,7 @@ public class MpvControl : Control
 {
     private Process _mpvProcess;
     private nint _mpvWindowHandle;
-    private NamedPipeClientStream _ipcPipe;
+    private StreamWriter _ipcWriter;
     private static int _instanceCounter;
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -166,13 +166,9 @@ public class MpvControl : Control
         {
             try
             {
-                _ipcPipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
-                _ipcPipe.Connect(500);
-
-                // Start a background thread to drain mpv response messages
-                // so the pipe buffer doesn't fill up and block writes
-                new Thread(DrainIpcResponses) { IsBackground = true }.Start();
-
+                var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out);
+                pipe.Connect(500);
+                _ipcWriter = new StreamWriter(pipe, Encoding.UTF8, 4096) { AutoFlush = true };
                 return;
             }
             catch
@@ -182,28 +178,12 @@ public class MpvControl : Control
         }
     }
 
-    private void DrainIpcResponses()
-    {
-        var buf = new byte[4096];
-        try
-        {
-            while (_ipcPipe != null && _ipcPipe.IsConnected)
-            {
-                // Read and discard mpv response
-                _ipcPipe.Read(buf, 0, buf.Length);
-            }
-        }
-        catch { /* pipe closed, expected */ }
-    }
-
     public void SendIpc(string json)
     {
-        if (_ipcPipe == null || !_ipcPipe.IsConnected) return;
+        if (_ipcWriter == null) return;
         try
         {
-            var bytes = Encoding.UTF8.GetBytes(json + "\n");
-            _ipcPipe.Write(bytes, 0, bytes.Length);
-            _ipcPipe.Flush();
+            _ipcWriter.Write(json + "\n");
         }
         catch { }
     }
@@ -220,10 +200,10 @@ public class MpvControl : Control
     /// </summary>
     public void StopPlayback()
     {
-        if (_ipcPipe != null)
+        if (_ipcWriter != null)
         {
-            try { _ipcPipe.Dispose(); } catch { }
-            _ipcPipe = null;
+            try { _ipcWriter.Dispose(); } catch { }
+            _ipcWriter = null;
         }
 
         if (_mpvProcess != null && !_mpvProcess.HasExited)
