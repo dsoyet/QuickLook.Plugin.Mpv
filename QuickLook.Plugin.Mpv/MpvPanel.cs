@@ -33,7 +33,16 @@ public partial class MpvPanel : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
-        _mpvControl?.StartPlayback(_filePath, _mpvExePath, _mpvExtraArgs);
+        // Defer to let WinForms control fully initialize its handle inside WindowsFormsHost
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_mpvControl != null && !_mpvControl.IsDisposed)
+            {
+                if (!_mpvControl.IsHandleCreated)
+                    _mpvControl.CreateHandle();
+                _mpvControl.StartPlayback(_filePath, _mpvExePath, _mpvExtraArgs);
+            }
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
