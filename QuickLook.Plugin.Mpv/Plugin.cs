@@ -36,7 +36,7 @@ public class Plugin : IViewer
             Log($"Configured path: '{configuredPath}'");
             _mpvExePath = MpvControl.ResolveMpvPath(configuredPath);
             Log($"Resolved mpv: '{_mpvExePath ?? "NULL"}'");
-            _mpvExtraArgs = SettingHelper.Get("MpvArgs", "--no-osc --no-input-default-bindings --loop-file=no --keep-open=no", "QuickLook.Plugin.Mpv");
+            _mpvExtraArgs = SettingHelper.Get("MpvArgs", "--no-osc --loop-file=no --keep-open=no", "QuickLook.Plugin.Mpv");
             Log($"Extra args: '{_mpvExtraArgs}'");
         }
         catch (Exception ex)

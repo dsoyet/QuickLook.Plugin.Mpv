@@ -181,10 +181,14 @@ public class MpvControl : Control
         }
     }
 
+    private const int WM_KEYDOWN = 0x0100;
+    private const int WM_KEYUP = 0x0101;
+    private const int VK_ESCAPE = 0x1B;
+
     protected override void WndProc(ref Message m)
     {
-        // Forward keyboard input back to parent so QuickLook can handle Escape etc.
-        if (m.Msg == 0x0100 /* WM_KEYDOWN */ || m.Msg == 0x0101 /* WM_KEYUP */)
+        // Only forward Escape to QuickLook; let other keys through to mpv
+        if ((m.Msg == WM_KEYDOWN || m.Msg == WM_KEYUP) && m.WParam.ToInt32() == VK_ESCAPE)
         {
             if (Parent != null)
             {
