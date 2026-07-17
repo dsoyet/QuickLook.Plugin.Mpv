@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net462</TargetFramework>
+        <RootNamespace>QuickLook.Plugin.Mpv</RootNamespace>
+        <AssemblyName>QuickLook.Plugin.Mpv</AssemblyName>
+        <Platforms>AnyCPU;x64</Platforms>
+        <UseWPF>true</UseWPF>
+        <UseWindowsForms>true</UseWindowsForms>
+        <LangVersion>latest</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+        <DebugType>full</DebugType>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <Optimize>false</Optimize>
+        <OutputPath>..\Build\Debug\QuickLook.Plugin.Mpv</OutputPath>
+        <DefineConstants>DEBUG;TRACE</DefineConstants>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <OutputPath>..\Build\Release\</OutputPath>
+        <DefineConstants>TRACE</DefineConstants>
+    </PropertyGroup>
+
+    <Target Name="ReduceReleasePackaging" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+        <!-- Remove QuickLook.Common.dll from output (shipped with QuickLook itself) -->
+        <Delete Files="$(OutputPath)\QuickLook.Common.dll" Condition="Exists('$(OutputPath)\QuickLook.Common.dll')" />
+        <Delete Files="$(OutputPath)\QuickLook.Common.pdb" Condition="Exists('$(OutputPath)\QuickLook.Common.pdb')" />
+    </Target>
+
+    <ItemGroup>
+        <PackageReference Include="QuickLook.Common" Version="4.4.0-preview80" Private="False" />
+        <PackageReference Include="Costura.Fody" Version="6.0.0" Condition="'$(Configuration)' == 'Release'">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>compile; runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+</Project>

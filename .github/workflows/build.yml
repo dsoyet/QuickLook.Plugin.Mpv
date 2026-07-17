@@ -1,0 +1,31 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore QuickLook.Plugin.Mpv.slnx
+
+      - name: Build Release
+        run: msbuild QuickLook.Plugin.Mpv.slnx /p:Configuration=Release /p:Platform="Any CPU" /t:Restore;Build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickLook.Plugin.Mpv
+          path: Build/Release/
