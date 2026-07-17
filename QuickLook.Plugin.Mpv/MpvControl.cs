@@ -1,7 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipes;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 
 namespace QuickLook.Plugin.Mpv;
@@ -14,8 +16,8 @@ public class MpvControl : Control
 {
     private Process _mpvProcess;
     private nint _mpvWindowHandle;
-
-    private const int WM_PARENTNOTIFY = 0x0210;
+    private NamedPipeClientStream _ipcPipe;
+    private static int _instanceCounter;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool MoveWindow(nint hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
@@ -43,13 +45,6 @@ public class MpvControl : Control
         TabStop = true;
 
         Resize += OnResize;
-        GotFocus += OnGotFocus;
-    }
-
-    private void OnGotFocus(object sender, EventArgs e)
-    {
-        if (_mpvWindowHandle != IntPtr.Zero)
-            SetFocus(_mpvWindowHandle);
     }
 
     /// <summary>
@@ -115,10 +110,13 @@ public class MpvControl : Control
     {
         StopPlayback();
 
+        _instanceCounter++;
+        var pipeName = $"ql-mpv-{Process.GetCurrentProcess().Id}-{_instanceCounter}";
+
         var psi = new ProcessStartInfo
         {
             FileName = mpvPath,
-            Arguments = $"--wid={Handle.ToInt64()} --no-border {extraArgs} \"{filePath}\"",
+            Arguments = $"--wid={Handle.ToInt64()} --no-border --input-ipc-server=\\\\.\\pipe\\{pipeName} {extraArgs} \"{filePath}\"",
             UseShellExecute = false,
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden,
@@ -155,6 +153,39 @@ public class MpvControl : Control
             SetWindowLong(_mpvWindowHandle, GWL_STYLE, style | WS_CHILD | WS_VISIBLE);
             FitToControl();
         }
+
+        // Connect IPC pipe (mpv takes a moment to create it)
+        ConnectIpc(pipeName);
+    }
+
+    private void ConnectIpc(string pipeName)
+    {
+        var sw = Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < 3000)
+        {
+            try
+            {
+                _ipcPipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
+                _ipcPipe.Connect(500);
+                return;
+            }
+            catch
+            {
+                System.Threading.Thread.Sleep(100);
+            }
+        }
+    }
+
+    private void SendIpc(string json)
+    {
+        if (_ipcPipe == null || !_ipcPipe.IsConnected) return;
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes(json + "\n");
+            _ipcPipe.Write(bytes, 0, bytes.Length);
+            _ipcPipe.Flush();
+        }
+        catch { }
     }
 
     /// <summary>
@@ -162,6 +193,12 @@ public class MpvControl : Control
     /// </summary>
     public void StopPlayback()
     {
+        if (_ipcPipe != null)
+        {
+            try { _ipcPipe.Dispose(); } catch { }
+            _ipcPipe = null;
+        }
+
         if (_mpvProcess != null && !_mpvProcess.HasExited)
         {
             try
@@ -169,7 +206,7 @@ public class MpvControl : Control
                 _mpvProcess.Kill();
                 _mpvProcess.WaitForExit(2000);
             }
-            catch { /* process may have already exited */ }
+            catch { }
         }
 
         _mpvProcess?.Dispose();
@@ -191,41 +228,47 @@ public class MpvControl : Control
     }
 
     private const int WM_KEYDOWN = 0x0100;
-    private const int WM_KEYUP = 0x0101;
-    private const int WM_CHAR = 0x0102;
     private const int VK_ESCAPE = 0x1B;
+    private const int VK_SPACE = 0x20;
+    private const int VK_LEFT = 0x25;
+    private const int VK_UP = 0x26;
+    private const int VK_RIGHT = 0x27;
+    private const int VK_DOWN = 0x28;
+    private const int VK_OEM_4 = 0xDB;
+    private const int VK_OEM_6 = 0xDD;
 
     [DllImport("user32.dll")]
-    private static extern nint SendMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
-
-    [DllImport("user32.dll")]
-    private static extern nint SetFocus(nint hWnd);
+    private static extern bool PostMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
 
     protected override void WndProc(ref Message m)
     {
-        if (m.Msg == WM_KEYDOWN || m.Msg == WM_KEYUP || m.Msg == WM_CHAR)
+        if (m.Msg == WM_KEYDOWN)
         {
-            if (m.Msg == WM_KEYDOWN && m.WParam.ToInt32() == VK_ESCAPE)
+            var key = m.WParam.ToInt32();
+
+            if (key == VK_ESCAPE)
             {
-                // Forward Escape to QuickLook parent → close preview
-                if (Parent != null)
-                    PostMessage(Parent.Handle, (uint)m.Msg, m.WParam, m.LParam);
+                PostMessage(Parent.Handle, (uint)m.Msg, m.WParam, m.LParam);
                 return;
             }
 
-            // Forward all other keys to the embedded mpv window
-            if (_mpvWindowHandle != IntPtr.Zero)
+            switch (key)
             {
-                SendMessage(_mpvWindowHandle, (uint)m.Msg, m.WParam, m.LParam);
-                return;
+                case VK_SPACE:       SendIpc("{\"command\":[\"cycle\",\"pause\"]}"); return;
+                case VK_LEFT:        SendIpc("{\"command\":[\"seek\",-5]}"); return;
+                case VK_RIGHT:       SendIpc("{\"command\":[\"seek\",5]}"); return;
+                case VK_UP:          SendIpc("{\"command\":[\"add\",\"volume\",2]}"); return;
+                case VK_DOWN:        SendIpc("{\"command\":[\"add\",\"volume\",-2]}"); return;
+                case VK_OEM_4:       SendIpc("{\"command\":[\"multiply\",\"speed\",0.5]}"); return;
+                case VK_OEM_6:       SendIpc("{\"command\":[\"multiply\",\"speed\",2.0]}"); return;
+                case 0x46: /*F*/     SendIpc("{\"command\":[\"cycle\",\"fullscreen\"]}"); return;
+                case 0x4D: /*M*/     SendIpc("{\"command\":[\"cycle\",\"mute\"]}"); return;
+                case 0x39: /*9*/     SendIpc("{\"command\":[\"add\",\"volume\",-2]}"); return;
+                case 0x30: /*0*/     SendIpc("{\"command\":[\"add\",\"volume\",2]}"); return;
             }
         }
-        base.WndProc(ref m);
-    }
 
-    private static new bool PostMessage(nint hWnd, uint Msg, nint wParam, nint lParam)
-    {
-        return NativeMethods.PostMessage(hWnd, Msg, wParam, lParam);
+        base.WndProc(ref m);
     }
 
     protected override void Dispose(bool disposing)
@@ -235,11 +278,5 @@ public class MpvControl : Control
             StopPlayback();
         }
         base.Dispose(disposing);
-    }
-
-    private static class NativeMethods
-    {
-        [DllImport("user32.dll")]
-        public static extern bool PostMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
     }
 }
