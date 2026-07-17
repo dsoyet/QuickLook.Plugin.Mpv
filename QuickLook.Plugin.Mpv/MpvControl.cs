@@ -39,8 +39,17 @@ public class MpvControl : Control
         SetStyle(ControlStyles.UserPaint, true);
         SetStyle(ControlStyles.ResizeRedraw, true);
         SetStyle(ControlStyles.OptimizedDoubleBuffer, false);
+        SetStyle(ControlStyles.Selectable, true);
+        TabStop = true;
 
         Resize += OnResize;
+        GotFocus += OnGotFocus;
+    }
+
+    private void OnGotFocus(object sender, EventArgs e)
+    {
+        if (_mpvWindowHandle != IntPtr.Zero)
+            SetFocus(_mpvWindowHandle);
     }
 
     /// <summary>
@@ -183,28 +192,40 @@ public class MpvControl : Control
 
     private const int WM_KEYDOWN = 0x0100;
     private const int WM_KEYUP = 0x0101;
+    private const int WM_CHAR = 0x0102;
     private const int VK_ESCAPE = 0x1B;
+
+    [DllImport("user32.dll")]
+    private static extern nint SendMessage(nint hWnd, uint Msg, nint wParam, nint lParam);
+
+    [DllImport("user32.dll")]
+    private static extern nint SetFocus(nint hWnd);
 
     protected override void WndProc(ref Message m)
     {
-        if (m.Msg == WM_KEYDOWN || m.Msg == WM_KEYUP)
+        if (m.Msg == WM_KEYDOWN || m.Msg == WM_KEYUP || m.Msg == WM_CHAR)
         {
-            if (m.WParam.ToInt32() == VK_ESCAPE)
+            if (m.Msg == WM_KEYDOWN && m.WParam.ToInt32() == VK_ESCAPE)
             {
                 // Forward Escape to QuickLook parent → close preview
                 if (Parent != null)
-                    NativeMethods.PostMessage(Parent.Handle, (uint)m.Msg, m.WParam, m.LParam);
+                    PostMessage(Parent.Handle, (uint)m.Msg, m.WParam, m.LParam);
                 return;
             }
 
             // Forward all other keys to the embedded mpv window
             if (_mpvWindowHandle != IntPtr.Zero)
             {
-                NativeMethods.PostMessage(_mpvWindowHandle, (uint)m.Msg, m.WParam, m.LParam);
+                SendMessage(_mpvWindowHandle, (uint)m.Msg, m.WParam, m.LParam);
                 return;
             }
         }
         base.WndProc(ref m);
+    }
+
+    private static new bool PostMessage(nint hWnd, uint Msg, nint wParam, nint lParam)
+    {
+        return NativeMethods.PostMessage(hWnd, Msg, wParam, lParam);
     }
 
     protected override void Dispose(bool disposing)
