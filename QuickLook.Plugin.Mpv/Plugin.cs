@@ -16,9 +16,17 @@ public class Plugin : IViewer
 
     public void Init()
     {
-        var configuredPath = SettingHelper.Get("MpvPath", string.Empty, "QuickLook.Plugin.Mpv");
-        _mpvExePath = MpvControl.ResolveMpvPath(configuredPath);
-        _mpvExtraArgs = SettingHelper.Get("MpvArgs", "--no-osc --no-input-default-bindings --loop-file=no --keep-open=no", "QuickLook.Plugin.Mpv");
+        try
+        {
+            var configuredPath = SettingHelper.Get("MpvPath", string.Empty, "QuickLook.Plugin.Mpv");
+            _mpvExePath = MpvControl.ResolveMpvPath(configuredPath);
+            _mpvExtraArgs = SettingHelper.Get("MpvArgs", "--no-osc --no-input-default-bindings --loop-file=no --keep-open=no", "QuickLook.Plugin.Mpv");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[QuickLook.Plugin.Mpv] Init failed: {ex}");
+            _mpvExePath = null;
+        }
     }
 
     public bool CanHandle(string path)
