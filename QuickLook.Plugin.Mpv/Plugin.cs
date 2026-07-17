@@ -12,7 +12,7 @@ public class Plugin : IViewer
     private string _mpvExePath;
     private string _mpvExtraArgs;
 
-    public int Priority => 0;
+    public int Priority => 10;
 
     public void Init()
     {
