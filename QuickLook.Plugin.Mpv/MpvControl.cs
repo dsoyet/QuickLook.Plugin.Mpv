@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace QuickLook.Plugin.Mpv;
@@ -167,6 +168,11 @@ public class MpvControl : Control
             {
                 _ipcPipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
                 _ipcPipe.Connect(500);
+
+                // Start a background thread to drain mpv response messages
+                // so the pipe buffer doesn't fill up and block writes
+                new Thread(DrainIpcResponses) { IsBackground = true }.Start();
+
                 return;
             }
             catch
@@ -174,6 +180,20 @@ public class MpvControl : Control
                 System.Threading.Thread.Sleep(100);
             }
         }
+    }
+
+    private void DrainIpcResponses()
+    {
+        var buf = new byte[4096];
+        try
+        {
+            while (_ipcPipe != null && _ipcPipe.IsConnected)
+            {
+                // Read and discard mpv response
+                _ipcPipe.Read(buf, 0, buf.Length);
+            }
+        }
+        catch { /* pipe closed, expected */ }
     }
 
     public void SendIpc(string json)
