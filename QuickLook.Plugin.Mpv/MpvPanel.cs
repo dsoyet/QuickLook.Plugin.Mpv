@@ -70,7 +70,7 @@ public partial class MpvPanel : UserControl
             if (_mpvControl != null && !_mpvControl.IsDisposed)
             {
                 if (!_mpvControl.IsHandleCreated)
-                    _mpvControl.CreateHandle();
+                    _mpvControl.EnsureHandle();
                 _mpvControl.StartPlayback(_filePath, _mpvExePath, _mpvExtraArgs);
             }
         }), System.Windows.Threading.DispatcherPriority.Loaded);

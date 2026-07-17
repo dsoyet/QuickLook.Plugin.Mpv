@@ -188,6 +188,13 @@ public class MpvControl : Control
         catch { }
     }
 
+    /// <summary>Ensures the WinForms handle is created (required before StartPlayback).</summary>
+    public void EnsureHandle()
+    {
+        if (!IsHandleCreated)
+            CreateHandle();
+    }
+
     /// <summary>
     /// Stops mpv and cleans up.
     /// </summary>
