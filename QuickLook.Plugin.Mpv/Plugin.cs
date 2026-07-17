@@ -9,13 +9,17 @@ namespace QuickLook.Plugin.Mpv;
 
 public class Plugin : IViewer
 {
-    private string _mpvExePath;
-    private string _mpvExtraArgs;
+    private static string _mpvExePath;
+    private static string _mpvExtraArgs;
+    private static bool _initialized;
 
     public int Priority => 10;
 
     public void Init()
     {
+        if (_initialized)
+            return;
+
         try
         {
             var configuredPath = SettingHelper.Get("MpvPath", string.Empty, "QuickLook.Plugin.Mpv");
@@ -27,6 +31,8 @@ public class Plugin : IViewer
             System.Diagnostics.Debug.WriteLine($"[QuickLook.Plugin.Mpv] Init failed: {ex}");
             _mpvExePath = null;
         }
+
+        _initialized = true;
     }
 
     public bool CanHandle(string path)
